@@ -35,7 +35,10 @@
 		     :type (array (function (%bag t) t) (*)))
 
   ;; ammount to extend internal arrays by when resizing
-  (extension 100 :type fixnum))
+  (extension 100 :type fixnum)
+
+  ;; used by rummage
+  (parent nil :type (or %bag null)))
 
 (defstruct (rummage (:include %bag))
   (predicate (error "predicate is mandatory to start rummaging")
@@ -51,12 +54,8 @@
 (defun %make-items-array ()
   (make-array 0 :adjustable t :fill-pointer 0))
 
-(defun %make-item-cache (&optional items)
-  (if items
-      (let ((l (length items)))
-	(make-array l :adjustable t :fill-pointer l
-		    :initial-contents items))
-      (make-array 0 :adjustable t :fill-pointer 0)))
+(defun %make-item-cache ()
+  (make-array 0 :adjustable t :fill-pointer 0))
 
 (defun %make-item-to-cache-array ()
   (make-array 0 :element-type 'fixnum :adjustable t :fill-pointer 0))
@@ -84,8 +83,8 @@
 
 ;;----------------------------------------------------------------------
 
-(defun add-item (bag item &optional (test #'eq))
-  (unless (find item (%bag-items bag) :test test)
+(defun add-item (bag item)
+  (unless (find item (%bag-items bag) :test #'eq)
     (let ((extension (%bag-extension bag)))
       (if (%bag-holes-in-items bag)
 	  (let ((i (pop (%bag-holes-in-items bag))))
@@ -97,26 +96,27 @@
 	    (vector-push-extend item (%bag-items bag) extension)))
       (vector-push-extend item (%bag-item-cache bag) extension)))
   (loop :for rummager :across (bag-rummagers bag) :do
-     (%parent-on-added bag item))
+     (%parent-on-added rummager item))
   (loop :for callback :across (%bag-added-callbacks bag) :do
      (funcall callback bag item))
   bag)
 
 ;;----------------------------------------------------------------------
 
-(defun remove-item (bag item &optional (test #'eq))
-  (let ((pos (position item (%bag-items bag) :test test)))
+(defun remove-item (bag item &optional (error-if-missing t))
+  (let ((pos (position item (%bag-items bag) :test #'eq)))
     (if pos
 	(progn
 	  (setf (aref (%bag-items bag) pos) nil)
 	  (%remove-item-from-cache bag pos)
 	  (push pos (%bag-holes-in-items bag))
 	  (loop :for rummager :across (bag-rummagers bag) :do
-	     (%parent-on-removed bag item))
+	     (%parent-on-removed rummager item))
 	  (loop :for callback :across (%bag-removed-callbacks bag) :do
 	     (funcall callback bag item))
 	  bag)
-	(error "No item ~s in bag ~s" item bag))))
+	(when error-if-missing
+	  (error "No item ~s in bag ~s" item bag)))))
 
 (defun %remove-item-from-cache (bag item-pos)
   ;; swap with last element and (1- fill-pointer)
@@ -152,7 +152,7 @@
 	  (%bag-removed-callbacks bag) (%make-callback-array))
     (loop :for rummager :across (bag-rummagers bag) :do
        (loop :for item :across items :do
-	  (%parent-on-added bag item)))
+	  (%parent-on-removed rummager item)))
     (loop :for callback :across (%bag-removed-callbacks bag) :do
        (loop :for item :across items :do
 	  (funcall callback bag item))))
@@ -168,12 +168,25 @@
   (vector-push-extend callback (%bag-removed-callbacks bag))
   bag)
 
+(defun remove-on-added-callback (bag callback)
+  (setf (%bag-removed-callbacks bag)
+	(delete callback (%bag-removed-callbacks bag) :count 1))
+  bag)
+
+(defun remove-on-removed-callback (bag callback)
+  (setf (%bag-removed-callbacks bag)
+	(delete callback (%bag-removed-callbacks bag) :count 1))
+  bag)
+
 (defun %add-rummager (bag rummager)
-  (vector-push-extend rummager (bag-rummagers bag))
+  (unless (find rummager (bag-rummagers bag) :test #'eq)
+    (vector-push-extend rummager (bag-rummagers bag))
+    (setf (%bag-parent rummager) bag))
   bag)
 
 (defun %remove-rummager (bag rummager)
-  (vector-push-extend rummager (bag-rummagers bag))
+  (setf (bag-rummagers bag) (delete rummager (bag-rummagers bag) :count 1))
+  (setf (%bag-parent rummager) nil)
   bag)
 
 ;;----------------------------------------------------------------------
@@ -183,11 +196,12 @@
     (%add-rummager bag r)
     r))
 
-(defun stop-rummaging (rummage)
-  )
+(defun stop-rummaging (bag rummage)
+  (%remove-rummager bag rummage))
 
-(defun %parent-on-added (parent item)
-  )
+(defun %parent-on-added (rummager item)
+  (when (funcall (rummage-predicate rummager) item)
+    (add-item rummager item)))
 
-(defun %parent-on-removed (parent item)
-  )
+(defun %parent-on-removed (rummager item)
+  (remove-item rummager item ))
