@@ -16,10 +16,6 @@
   ;; a holeless array with the same elements as items
   (item-cache (%make-item-cache) :type (array t (*)))
 
-  ;; an array where the nth element hold the index into the
-  ;; item-cache where you can find the nth element of 'items
-  (items-to-cache-indices (%make-item-to-cache-array) :type (array fixnum (*)))
-
   ;; quick lookup for cache state
   (cache-invalid-p nil :type boolean)
 
@@ -38,12 +34,10 @@
 
 (defun %make-item-cache (&optional items)
   (if items
-      (make-array (length items) :adjustable t :fill-pointer 0
-		  :initial-contents items)
+      (let ((l (length items)))
+	(make-array l :adjustable t :fill-pointer l
+		    :initial-contents items))
       (make-array 0 :adjustable t :fill-pointer 0)))
-
-(defun %make-item-to-cache-array ()
-  (make-array 0 :element-type 'fixnum :adjustable t :fill-pointer 0))
 
 (defun %make-callback-array ()
   (make-array 0 :element-type '(function (bag t) t)
@@ -53,22 +47,32 @@
 
 (defun bag! () (make-bag))
 
+(defun %fix-up-cache (bag)
+  (setf (bag-item-cache bag)
+	(%make-item-cache
+	 (loop :for item :across (bag-items bag)
+	    :when (not (null item)) :collect item)))
+  (setf (bag-cache-invalid-p bag) nil)
+  bag)
+
 ;;----------------------------------------------------------------------
 
 (defun get-items (bag)
   (when (bag-cache-invalid-p bag)
-    (%make-item-cache
-     (loop :for item :in (bag-items))))
+    (%fix-up-cache bag))
   (bag-item-cache bag))
 
 ;;----------------------------------------------------------------------
 
 (defun add-item (bag item &optional (test #'eq))
   (unless (find item (bag-items bag) :test test)
-    (vector-push-extend item (bag-items bag))
-    (vector-push-extend item (bag-item-cache bag))
-    (vector-push-extend (1- (length (bag-item-cache bag)))
-			(bag-items-to-cache-indices bag)))
+    (if (bag-holes-in-items bag)
+	(let ((i (pop (bag-holes-in-items bag))))
+	  (setf (aref (bag-items bag) i) item))
+	(vector-push-extend item (bag-items bag)))
+    (if (bag-cache-invalid-p bag)
+	(%fix-up-cache bag)
+	(vector-push-extend item (bag-item-cache bag))))
   (loop :for callback :across (bag-added-callbacks bag) :do
      (funcall callback bag item))
   bag)
@@ -80,12 +84,12 @@
     (if pos
 	(progn
 	  (setf (aref (bag-items bag) pos) nil
-		(aref (bag-items-to-cache-indices bag) pos) -1
 		(bag-item-cache bag) (%make-item-cache)
 		(bag-cache-invalid-p bag) t)
 	  (push pos (bag-holes-in-items bag))
 	  (loop :for callback :across (bag-removed-callbacks bag) :do
-	     (funcall callback bag item)))
+	     (funcall callback bag item))
+	  bag)
 	(error "No item ~s in bag ~s" item bag))))
 
 (defun remove-all (bag)
@@ -94,7 +98,6 @@
 	  (bag-item-cache bag) (%make-item-cache)
 	  (bag-holes-in-items bag) nil
 	  (bag-cache-invalid-p bag) nil
-	  (bag-items-to-cache-indices bag) (%make-item-to-cache-array)
 	  (bag-added-callbacks bag) (%make-callback-array)
 	  (bag-removed-callbacks bag) (%make-callback-array))
     (loop :for callback :across (bag-removed-callbacks bag) :do
