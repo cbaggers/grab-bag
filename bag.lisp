@@ -25,7 +25,16 @@
 
   ;; called when item removed
   (removed-callbacks (%make-callback-array)
-		     :type (array (function (bag t) t) (*))))
+		     :type (array (function (bag t) t) (*)))
+
+  ;; ammount to extend internal arrays by when resizing
+  (extension 100 :type fixnum))
+
+  ;; ;; rummagers - this could be implemented with the callbacks
+  ;; ;;             however I want to optimize this callpath
+  ;; (rummagers (make-array 0 :element-type 'bag :adjustable t
+  ;; 			 :fill-pointer 0)
+  ;; 	     :type (array bag (*)))
 
 ;;----------------------------------------------------------------------
 
@@ -45,7 +54,16 @@
 
 ;;----------------------------------------------------------------------
 
-(defun bag! () (make-bag))
+(defun bag! (&optional (min-extension 100))
+  (make-bag :extension min-extension))
+
+(defun destroy-bag (bag)
+  (remove-all bag)
+  (setf (bag-added-callbacks bag) (%make-callback-array)
+	(bag-removed-callbacks bag) (%make-callback-array))
+  nil)
+
+;;----------------------------------------------------------------------
 
 (defun %fix-up-cache (bag)
   (setf (bag-item-cache bag)
@@ -66,13 +84,14 @@
 
 (defun add-item (bag item &optional (test #'eq))
   (unless (find item (bag-items bag) :test test)
-    (if (bag-holes-in-items bag)
-	(let ((i (pop (bag-holes-in-items bag))))
-	  (setf (aref (bag-items bag) i) item))
-	(vector-push-extend item (bag-items bag)))
-    (if (bag-cache-invalid-p bag)
-	(%fix-up-cache bag)
-	(vector-push-extend item (bag-item-cache bag))))
+    (let ((extension (bag-extension bag)))
+      (if (bag-holes-in-items bag)
+	  (let ((i (pop (bag-holes-in-items bag))))
+	    (setf (aref (bag-items bag) i) item))
+	  (vector-push-extend item (bag-items bag) extension))
+      (if (bag-cache-invalid-p bag)
+	  (%fix-up-cache bag)
+	  (vector-push-extend item (bag-item-cache bag) extension))))
   (loop :for callback :across (bag-added-callbacks bag) :do
      (funcall callback bag item))
   bag)
@@ -106,3 +125,11 @@
   bag)
 
 ;;----------------------------------------------------------------------
+
+(defun add-on-added-callback (bag callback)
+  (vector-push-extend callback (bag-added-callbacks bag))
+  bag)
+
+(defun add-on-removed-callback (bag callback)
+  (vector-push-extend callback (bag-removed-callbacks bag))
+  bag)
