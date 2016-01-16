@@ -6,4 +6,4 @@
   :license "Specify license here"
   :serial t
   :components ((:file "package")
-               (:file "bag")))
+               (:file "typed-bag")))
