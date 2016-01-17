@@ -25,7 +25,10 @@
 	   (rummagers (symb bag-type '-rummagers))
 	   (predicate (symb rummager-type '-predicate))
 	   (add-item (symb 'add-item-to- element-type '-bag))
+	   (add-item-at (symb 'add-item-to- element-type '-bag-at))
 	   (remove-item (symb 'remove-item-from- element-type '-bag))
+	   (remove-item-at (symb 'remove-item-from- element-type '-bag-at))
+	   (has-item-at (symb 'has-item-in- element-type '-bag-at))
 	   (remove-all (symb 'remove-all-from- element-type '-bag))
 	   (init (symb 'bag-of- element-type '!))
 	   (start-rummaging (symb 'rummage- element-type '-bag))
@@ -85,6 +88,31 @@
 		    (%make-callback-array ()
 		      (make-array 0 :element-type '(function (,bag-type ,element-type) t)
 				  :adjustable t :fill-pointer 0))
+
+		    (%add-n-holes (bag n)
+		      (let ((start (length (,items bag))))
+			(setf (,holes-in-items bag)
+			      (append
+			       (loop :for i :from start :below (+ start n)
+				  :collect i)
+			       (,holes-in-items bag))))
+		      (loop :for i :below n :do
+			 (vector-push-extend nil (,items bag)))
+		      (loop :for i :below n :do
+			 (vector-push-extend -1 (,items-to-cache-indices bag)))
+		      bag)
+
+		    (%insert-item-at (bag item index)
+		      (when (aref (,items bag) index)
+			(error "add-item-at: bag's slot is already taken"))
+		      (setf (aref (,items bag) index) item)
+		      (let ((cache-len (length (,item-cache bag))))
+			(setf (aref (,items-to-cache-indices bag) index)
+			      cache-len)
+			(vector-push-extend item (,item-cache bag))
+			(setf (,holes-in-items bag)
+			      (delete index (,holes-in-items bag)))
+			bag))
 
 		    (%remove-item-from-cache (bag pos-in-item-array)
 		      (declare (,bag-type bag) (fixnum pos-in-item-array))
@@ -183,19 +211,39 @@
 		  (funcall callback bag item))
 	       bag)
 
-	     (defun ,remove-item (bag item &optional (error-if-missing t))
-	       (declare (,bag-type bag) (,element-type item)
-			(boolean error-if-missing))
-	       (let ((pos (position item (,items bag) :test #'eq)))
-		 (if pos
+	     (defun ,add-item-at (bag item index)
+	       (let ((len (length (,items bag))))
+		 (if (> index len)
 		     (progn
-		       (%remove-item-from-cache bag pos)
-		       (push pos (,holes-in-items bag))
+		       (%add-n-holes bag (1+ (- index len)))
+		       (%insert-item-at bag item index))
+		     (%insert-item-at bag item index))
+		 bag))
+
+	     (defun ,remove-item-at (bag index)
+	       (declare (,bag-type bag) (fixnum index))
+	       (let ((item (aref (,items bag) index)))
+		 (if item
+		     (progn
+		       (%remove-item-from-cache bag index)
+		       (push index (,holes-in-items bag))
 		       (loop :for rummager :across (,rummagers bag) :do
 			  (%parent-on-removed rummager item))
 		       (loop :for callback :across (,removed-callbacks bag) :do
 			  (funcall callback bag item))
 		       bag)
+		     (error "No item ~s in bag ~s" item bag))))
+
+	     (defun ,has-item-at (bag index)
+	       (declare (,bag-type bag) (fixnum index))
+	       (not (null (aref (,items bag) index))))
+
+	     (defun ,remove-item (bag item &optional (error-if-missing t))
+	       (declare (,bag-type bag) (,element-type item)
+			(boolean error-if-missing))
+	       (let ((pos (position item (,items bag) :test #'eq)))
+		 (if pos
+		     (,remove-item-at bag pos)
 		     (when error-if-missing
 		       (error "No item ~s in bag ~s" item bag)))))
 
