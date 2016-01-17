@@ -1,12 +1,8 @@
 (in-package #:grab-bag)
 
-;; this monster is made from the un-typed bag
-;; edit that first and move changes here.
-
 ;; # TODO FOR TYPED VERSION
 ;;
 ;; - add and profile fast-find and fast-position
-;; - make remove-item handled 1 item and 0 items
 
 (defconstant +release-mode+ nil)
 
