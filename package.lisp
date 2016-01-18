@@ -1,5 +1,5 @@
 ;;;; package.lisp
 
 (defpackage #:grab-bag
-  (:use #:cl))
-
+  (:use #:cl)
+  (:export :def-typed-bag))
