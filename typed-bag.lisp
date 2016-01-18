@@ -218,11 +218,11 @@
 
 	     (defun ,add-item-at (bag item index)
 	       (let ((len (length (,items bag))))
-		 (if (> index len)
+		 (if (< index len)
+		     (%insert-item-at bag item index)
 		     (progn
 		       (%add-n-holes bag (1+ (- index len)))
-		       (%insert-item-at bag item index))
-		     (%insert-item-at bag item index))
+		       (%insert-item-at bag item index)))
 		 bag))
 
 	     (defun ,remove-item-at (bag index)
