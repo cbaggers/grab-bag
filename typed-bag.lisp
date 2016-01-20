@@ -242,7 +242,7 @@
 	     (defun ,has-item-at (bag index)
 	       (declare (,bag-type bag) (fixnum index))
 	       (let ((items (,items bag)))
-		 (and (<= index (length items))
+		 (and (< index (length items))
 		      (not (null (aref (,items bag) index))))))
 
 	     (defun ,get-item-at (bag index)
