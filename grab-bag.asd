@@ -1,9 +1,9 @@
 ;;;; grab-bag.asd
 
 (asdf:defsystem #:grab-bag
-  :description "Describe grab-bag here"
-  :author "Your Name <your.name@example.com>"
-  :license "Specify license here"
+  :description "A simple but somewhat optimized pool for objects."
+  :author "Chris Bagley (Baggers) <techsnuffle@gmail.com>"
+  :license "BSD 2 Clause"
   :serial t
   :components ((:file "package")
                (:file "typed-bag")))
