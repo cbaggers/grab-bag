@@ -179,11 +179,15 @@
 
 		    (%parent-on-touched (rummager item)
 		      (declare (,rummager-type rummager) (,element-type item))
-		      (let* ((match (funcall (,predicate rummager) item))
-			     (rummager-bag (,rummager-bag rummager) )
-			     (has (find item (,items rummager-bag) :test #'eq)))
-			(if match
-			    (unless has (,add-item rummager-bag item))
+		      (let* ((should-have (funcall (,predicate rummager) item))
+			     (rummager-bag (,rummager-bag rummager))
+			     (index (position item (,items rummager-bag)
+					      :test #'eq))
+			     (has (not (null index))))
+			(if should-have
+			    (if has
+				(,touch-item-at rummager-bag index)
+				(,add-item rummager-bag item))
 			    (when has (,remove-item rummager-bag item))))))
 
 	     (defun ,init (&optional (min-extension 100))
