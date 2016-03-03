@@ -26,6 +26,8 @@
 	   (predicate (symb rummager-type '-predicate))
 	   (add-item (symb 'add-item-to- element-type '-bag))
 	   (add-item-at (symb 'add-item-to- element-type '-bag-at))
+	   (touch-item-at (symb 'touch- element-type '-item-at))
+	   (touch-item (symb 'touch- element-type '-item))
 	   (remove-item (symb 'remove-item-from- element-type '-bag))
 	   (remove-item-at (symb 'remove-item-from- element-type '-bag-at))
 	   (has-item-at (symb 'has-item-in- element-type '-bag-at))
@@ -173,7 +175,16 @@
 			(,add-item (,rummager-bag rummager) item)))
 		    (%parent-on-removed (rummager item)
 		      (declare (,rummager-type rummager) (,element-type item))
-		      (,remove-item (,rummager-bag rummager) item nil)))
+		      (,remove-item (,rummager-bag rummager) item nil))
+
+		    (%parent-on-touched (rummager item)
+		      (declare (,rummager-type rummager) (,element-type item))
+		      (let* ((match (funcall (,predicate rummager) item))
+			     (rummager-bag (,rummager-bag rummager) )
+			     (has (find item (,items rummager-bag) :test #'eq)))
+			(if match
+			    (unless has (,add-item rummager-bag item))
+			    (when has (,remove-item rummager-bag item))))))
 
 	     (defun ,init (&optional (min-extension 100))
 	       (declare (fixnum min-extension))
@@ -195,6 +206,19 @@
 	     (defun ,(symb 'get-items-from- element-type '-rummager) (rummager)
 	       (declare (,rummager-type rummager))
 	       (,item-cache (,rummager-bag rummager)))
+
+	     (defun ,touch-item-at (bag index)
+	       (let ((item (aref (,items bag) index)))
+		 (unless item
+		   (error "touch-item-at: bag slot ~s is empty" index))
+		 (loop :for rummager :across (,rummagers bag) :do
+		    (%parent-on-touched rummager item))))
+
+	     (defun ,touch-item (bag item)
+	       (let ((index (position item (,items bag) :test #'eq)))
+		 (if item
+		     (,touch-item-at bag index)
+		     (error "touch-item: attempted to touch item ~s in bag ~s but that bag doesnt contain that item"))))
 
 	     (defun ,add-item (bag item)
 	       (declare (,bag-type bag) (,element-type item))
