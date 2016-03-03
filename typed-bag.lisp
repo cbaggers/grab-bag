@@ -218,11 +218,12 @@
 		 (loop :for rummager :across (,rummagers bag) :do
 		    (%parent-on-touched rummager item))))
 
-	     (defun ,touch-item (bag item)
+	     (defun ,touch-item (bag item &key (error-if-missing t))
 	       (let ((index (position item (,items bag) :test #'eq)))
-		 (if item
+		 (if index
 		     (,touch-item-at bag index)
-		     (error "touch-item: attempted to touch item ~s in bag ~s but that bag doesnt contain that item"))))
+		     (when error-if-missing
+		       (error "touch-item: attempted to touch item ~s in bag ~s but that bag doesnt contain that item")))))
 
 	     (defun ,add-item (bag item)
 	       (declare (,bag-type bag) (,element-type item))
