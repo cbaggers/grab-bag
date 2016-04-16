@@ -223,7 +223,8 @@
 		 (if index
 		     (,touch-item-at bag index)
 		     (when error-if-missing
-		       (error "touch-item: attempted to touch item ~s in bag ~s but that bag doesnt contain that item")))))
+		       (error "touch-item: attempted to touch item ~s in bag ~s but that bag doesnt contain that item"
+			      item bag)))))
 
 	     (defun ,add-item (bag item)
 	       (declare (,bag-type bag) (,element-type item))
